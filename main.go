@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"os"
+	"strings"
 
 	"github.com/alecthomas/participle/v2"
 )
@@ -21,10 +21,11 @@ type Property struct {
 type Value struct {
 	String   *string  `@String`
 	Float    *float64 `| @Float`
-	Int      *int64   `| @Int`
+	Int      *int64   `| ("+" | "-")? @Int`
 	Bool     *bool    `| (@"true" | "false")`
-	List     []*Value `| "{" @@ (("," | ";") @@)* ("," | ";")? "}"`
+	List     []*Value `| ("{" @@ (("," | ";") @@)* ("," | ";")? "}" | "{" "}")`
 	Property *Value   `| "[" @@ "]" "=" @@`
+	Enum     *string  `| ("ROUGHNESS_METALLIC" | "DECAL" | "RROUGHNESS_METALLIC" | "DIFFUSE" | "default_diff" | "FROM_PATHS" | "SPECULAR")`
 }
 
 // CountryCodes - Country codes for DCS
@@ -40,13 +41,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// var su25tFolder = liveriesFolder + "\\su-25t"
-
-	// liveries, err := ioutil.ReadDir(su25tFolder)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
 
 	for _, plane := range planes {
 		liveries, err := ioutil.ReadDir(liveriesFolder + "\\" + plane.Name())
@@ -67,23 +61,46 @@ func main() {
 }
 
 func parseLivery(fileLocation string) *LUA {
+	fileBytes, err := ioutil.ReadFile(fileLocation)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileString := string(fileBytes)
+
+	commentlessFile := removeComments(fileString)
+
 	parser, err := participle.Build(&LUA{})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	r, err := os.Open(fileLocation)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	lua := &LUA{}
-	err = parser.Parse(fileLocation, r, lua)
+	err = parser.ParseString(fileLocation, commentlessFile, lua)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	return lua
+}
+
+func removeComments(fileContents string) string {
+	lines := strings.Split(fileContents, "\n")
+	newFileContents := ""
+	multiLineComment := false
+
+	for _, line := range lines {
+		if strings.Contains(line, "--[[") {
+			multiLineComment = true
+		} else if strings.Contains(line, "--]]") {
+			multiLineComment = false
+		}
+
+		if !strings.Contains(line, "--") && !multiLineComment && !strings.Contains(line, "local") {
+			newFileContents += line + "\n"
+		}
+	}
+
+	return newFileContents
 }
 
 func addCountriesToLivery(livery *LUA) {
