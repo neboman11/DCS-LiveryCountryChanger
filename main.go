@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/alecthomas/participle/v2"
-	"github.com/alecthomas/participle/v2/lexer/stateful"
 )
 
 type LUA struct {
@@ -33,20 +32,6 @@ var CountryCodes = [...]string{`"RUS"`, `"UKR"`, `"USA"`, `"TUR"`, `"UK"`, `"FRA
 	`"RSO"`, `"ITA"`, `"AUS"`, `"SUI"`, `"AUT"`, `"BLR"`, `"BGR"`, `"CZE"`, `"CHN"`, `"HRV"`, `"EGY"`, `"FIN"`, `"GRC"`, `"HUN"`, `"IND"`, `"IRN"`, `"IRQ"`, `"JPN"`, `"KAZ"`, `"PRK"`,
 	`"PAK"`, `"POL"`, `"ROU"`, `"SAU"`, `"SRB"`, `"SVK"`, `"KOR"`, `"SWE"`, `"SYR"`, `"YEM"`, `"VNM"`, `"VEN"`, `"TUN"`, `"THA"`, `"SDN"`, `"PHL"`, `"MAR"`, `"MEX"`, `"MYS"`,
 	`"LBY"`, `"JOR"`, `"IDN"`, `"HND"`, `"ETH"`, `"CHL"`, `"BRA"`, `"BHR"`, `"NZG"`, `"YUG"`, `"SUN"`, `"RSI"`, `"DZA"`, `"KWT"`, `"QAT"`, `"OMN"`, `"ARE"`, `"CUB"`, `"RSA"`}
-
-var luaLexer = stateful.MustSimple([]stateful.Rule{
-	{`Ident`, `[a-zA-Z][a-zA-Z_0-9]*`, nil},
-	{`String`, `"(?:\\.|[^"])*"`, nil},
-	{`Float`, `(?:[+-])?\d+\.\d+`, nil},
-	{`Int`, `(?:[+-])?\d+`, nil},
-	{"comment", `--[^\n]*`, nil},
-	{"whitespace", `\s+`, nil},
-})
-
-var luaParser = participle.MustBuild(&LUA{},
-	participle.Lexer(luaLexer),
-	participle.Unquote("String"),
-)
 
 func main() {
 	var dcsFolder = "C:\\Program Files\\Eagle Dynamics\\DCS World OpenBeta"
@@ -82,10 +67,10 @@ func main() {
 }
 
 func parseLivery(fileLocation string) *LUA {
-	// parser, err := participle.Build(&LUA{})
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	parser, err := participle.Build(&LUA{})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	r, err := os.Open(fileLocation)
 	if err != nil {
@@ -93,7 +78,7 @@ func parseLivery(fileLocation string) *LUA {
 	}
 
 	lua := &LUA{}
-	err = luaParser.Parse(fileLocation, r, lua)
+	err = parser.Parse(fileLocation, r, lua)
 	if err != nil {
 		log.Fatal(err)
 	}
