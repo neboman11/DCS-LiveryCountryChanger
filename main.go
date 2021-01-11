@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/alecthomas/participle/v2"
@@ -47,14 +48,22 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		for _, livery := range liveries {
-			if livery.IsDir() {
-				fmt.Println(livery.Name())
-				livery := parseLivery(liveriesFolder + "\\" + plane.Name() + "\\" + livery.Name() + "\\description.lua")
-				printCountries(livery)
-				fmt.Println()
-				addCountriesToLivery(livery)
-				printCountries(livery)
+		for _, liveryFolder := range liveries {
+			if liveryFolder.IsDir() {
+				livery := parseLivery(liveriesFolder + "\\" + plane.Name() + "\\" + liveryFolder.Name() + "\\description.lua")
+
+				countriesFieldExists := false
+
+				for _, field := range livery.Properties {
+					if field.Key == "countries" {
+						countriesFieldExists = true
+					}
+				}
+
+				if countriesFieldExists {
+					addCountriesToLivery(livery)
+					rebuildLiveryFile(liveriesFolder+"\\"+plane.Name()+"\\"+liveryFolder.Name()+"\\description.lua", livery)
+				}
 			}
 		}
 	}
@@ -136,4 +145,67 @@ func printCountries(livery *LUA) {
 			}
 		}
 	}
+}
+
+func rebuildLiveryFile(fileName string, livery *LUA) {
+	fileBytes, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fileString := string(fileBytes)
+
+	countriesIndex := strings.Index(fileString, "countries")
+
+	countriesEnd := 0
+
+	for i := countriesIndex; i < len(fileBytes); i++ {
+		if string(fileBytes[i]) == "}" {
+			countriesEnd = i + 1
+		}
+	}
+
+	countriesArray := buildCountriesByteArray(livery)
+
+	writer, err := os.Create(fileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer writer.Close()
+
+	_, err = writer.Write(fileBytes[0:countriesIndex])
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = writer.Write(countriesArray)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = writer.Write(fileBytes[countriesEnd:len(fileBytes)])
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func buildCountriesByteArray(livery *LUA) []byte {
+	countries := []byte("countries = {\n")
+	for _, field := range livery.Properties {
+		if field.Key == "countries" {
+			for _, country := range field.Value.List {
+				for _, letter := range []byte(*country.String) {
+					countries = append(countries, letter)
+				}
+				countries = append(countries, byte(','))
+				countries = append(countries, byte(' '))
+			}
+		}
+	}
+
+	countries = append(countries, byte('\n'))
+	countries = append(countries, byte('}'))
+	countries = append(countries, byte('\n'))
+
+	return countries
 }
